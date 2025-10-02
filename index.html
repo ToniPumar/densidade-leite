@@ -136,7 +136,7 @@
               <table class="tbl" id="tbl-in"></table>
             </div>
             <div>
-              <strong>Excluídas por exceder 2ª</strong>
+              <strong>Excluídas</strong>
               <table class="tbl" id="tbl-ex"></table>
             </div>
           </div>
@@ -182,7 +182,7 @@
     }
     function filterDecimal1(e){
       let v=e.target.value.replace(',', '.').replace(/[^\d.]/g,'');
-      const parts=v.split('.'); let out=parts[0].replace/^0+(?=\d)/,'';
+      const parts=v.split('.'); let out=parts[0].replace(/^0+(?=\d)/,'');
       if(parts.length>1){out+='.'+parts.slice(1).join('').slice(0,1);}
       if(out==='.') out=''; e.target.value=out;
     }
@@ -263,6 +263,7 @@
 
     /* ==========
       PARTE 2: CSV + cálculo entre recollidas (validación automática)
+      (VERSIÓN ANTERIOR + logs de excluídas)
     ========== */
     const csvInput=$('csv'), btnCalc=$('btn-calc'), busyBadge=$('busy'),
           okBadge=$('ok-badge'), errBadge=$('err-badge'), csvStatus=$('csv-status'),
@@ -281,7 +282,6 @@
       busyBadge.style.display=v?'inline-flex':'none';
     }
 
-    // ---- Regras de datas: dt2 non pode ser inferior a dt1 ----
     function setMinForDt2(){
       if(!dt1.value){ dt2.min=''; return; }
       dt2.min = dt1.value;
@@ -333,6 +333,7 @@
           const a=getPickerDate(dt1.value), b=getPickerDate(dt2.value);
           const {totalKilos, contadas, incl, excl}=computeSum(parsedRows, a, b);
           lastIncluded = incl.slice(0,200); lastExcluded = excl.slice(0,200);
+
           outRange.textContent=`${fmtDate(a)} → ${fmtDate(b)}`;
           outRows.textContent=String(contadas);
           outKilosCsv.textContent=new Decimal(totalKilos).toFixed(2);
@@ -353,8 +354,8 @@
 
     function renderDebug(){
       const max=20;
-      const headers=['Nº vaca','Visita','Produción (kg)','Tempo cub.','Fin (visita+cub.)'];
-      function draw(table, arr){
+      const headers=['Nº vaca','Visita','Produción (kg)','Tempo cub.','Fin (visita+cub.)','Razón exclusión?'];
+      function draw(table, arr, isExcluded){
         table.innerHTML='';
         const thead=document.createElement('thead');
         const trh=document.createElement('tr');
@@ -364,15 +365,16 @@
         arr.slice(0,max).forEach(r=>{
           const tr=document.createElement('tr');
           const fin = addMinutes(r.visita, r.cubMin);
-          [r.vaca, fmtDate(r.visita), r.kilos.toFixed(1), hm(r.cubMin), fmtDate(fin)].forEach(v=>{
+          const reason = r._reason || (isExcluded ? '—' : '');
+          [r.vaca, fmtDate(r.visita), r.kilos.toFixed(1), hm(r.cubMin), fmtDate(fin), reason].forEach(v=>{
             const td=document.createElement('td'); td.textContent=v; tr.appendChild(td);
           });
           tbody.appendChild(tr);
         });
         table.appendChild(tbody);
       }
-      draw(tblIn, lastIncluded);
-      draw(tblEx, lastExcluded);
+      draw(tblIn, lastIncluded, false);
+      draw(tblEx, lastExcluded, true);
     }
 
     function hm(mins){ const h=Math.floor(mins/60), m=String(mins%60).padStart(2,'0'); return `${h}:${m}`; }
@@ -431,32 +433,49 @@
     function fmt2(n){return String(n).padStart(2,'0');}
     function fmtDate(d){return `${d.getFullYear()}-${fmt2(d.getMonth()+1)}-${fmt2(d.getDate())} ${fmt2(d.getHours())}:${fmt2(d.getMinutes())}`;}
 
-    // ALGORITMO segundo o que pediches:
-    // Exclúe cando:
-    // 1) visita < dtIni
-    // 2) visita > dtFin
-    // 3) visita + tempo_en_cubículo > dtFin
-    // Polo tanto: incluímos visita ∈ [dtIni, dtFin] e que non supere dtFin coa suma do cubículo.
+    // ALGORITMO (versión anterior):
+    // Inclúe se: visita >= dtIni e visita < dtFin.  [inicio, fin)
+    // EXCLÚE se: visita + tempo_en_cubículo (min) > dtFin.
+    // Ademais: LOG a consola de TODAS as excluídas coa razón.
     function computeSum(rows, dtIni, dtFin){
       let total=new Decimal(0), contadas=0;
       const incl=[], excl=[];
       const tIni = dtIni.getTime(), tFin = dtFin.getTime();
 
+      console.groupCollapsed('%cAnálise de exclusións','color:#2563eb');
+
       for(const r of rows){
         const t=r.visita.getTime();
 
-        if(t < tIni) continue;          // regra 1
-        if(t > tFin) continue;          // regra 2
-
-        const finVisita = addMinutes(r.visita, r.cubMin);
-        if(finVisita.getTime() > tFin){ // regra 3
-          excl.push(r);
+        // Fóra do intervalo
+        if(t < tIni){
+          const reason='antes da 1ª recollida';
+          excl.push(Object.assign({_reason:reason}, r));
+          console.log(`[EXCLUÍDA] ${fmtDate(r.visita)} | ${r.kilos.toFixed(1)} kg | ${reason}`);
+          continue;
+        }
+        if(t >= tFin){
+          const reason='fóra do intervalo (≥ 2ª recollida)';
+          excl.push(Object.assign({_reason:reason}, r));
+          console.log(`[EXCLUÍDA] ${fmtDate(r.visita)} | ${r.kilos.toFixed(1)} kg | ${reason}`);
           continue;
         }
 
+        // Excede a 2ª pola suma co cubículo
+        const finVisita = addMinutes(r.visita, r.cubMin);
+        if(finVisita.getTime() > tFin){
+          const reason='supera a 2ª recollida por tempo en cubículo';
+          excl.push(Object.assign({_reason:reason}, r));
+          console.log(`[EXCLUÍDA] ${fmtDate(r.visita)} | ${r.kilos.toFixed(1)} kg | ${reason} (fin: ${fmtDate(finVisita)})`);
+          continue;
+        }
+
+        // Incluída
         total = total.plus(r.kilos);
         contadas++; incl.push(r);
       }
+      console.groupEnd();
+
       return { totalKilos: total.toNumber(), contadas, incl, excl };
     }
 
