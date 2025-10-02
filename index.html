@@ -3,90 +3,86 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Cálculo litros desde kilos (densidade leite)</title>
+  <title>Cálculo litros desde kilos (densidade leite) + CSV (Lely Horizon)</title>
 
-  <!-- decimal.js para precisión -->
   <script src="https://cdn.jsdelivr.net/npm/decimal.js@10.4.3/decimal.min.js"></script>
 
   <style>
     :root{
-      --bg: #f7f9fc;
-      --card: #ffffff;
-      --accent: #6aa6ff;
-      --accent-2:#9ed0ff;
-      --text: #1f2937;
-      --muted:#6b7280;
-      --ok:#10b981;
-      --bad:#ef4444;
-      --ring: rgba(106,166,255,0.35);
+      --bg:#f7f9fc; --card:#fff; --accent:#6aa6ff; --accent-2:#9ed0ff;
+      --text:#1f2937; --muted:#6b7280; --ok:#10b981; --bad:#ef4444; --ring:rgba(106,166,255,.35)
     }
     *{box-sizing:border-box}
     html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial}
     .wrap{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:18px}
-    .card{width:100%;max-width:520px;background:var(--card);border-radius:16px;padding:20px 18px; box-shadow:0 10px 30px rgba(0,0,0,.06), 0 2px 6px rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.04)}
-    h1{font-size:1.2rem;margin:0 0 12px 0}
-    p.sub{margin:0 0 16px 0;color:var(--muted);font-size:.95rem}
-    .grid{display:grid;gap:12px;grid-template-columns:1fr 1fr;}
+    .card{width:100%;max-width:680px;background:var(--card);border-radius:16px;padding:20px 18px;box-shadow:0 10px 30px rgba(0,0,0,.06),0 2px 6px rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.04)}
+    h1{font-size:1.2rem;margin:0 0 12px}
+    p.sub{margin:0 0 16px;color:var(--muted);font-size:.95rem}
+    .grid{display:grid;gap:12px;grid-template-columns:1fr 1fr}
     .grid .full{grid-column:1/-1}
     label{display:block;font-size:.9rem;margin:0 0 6px 2px;color:#334155}
-    .field{position:relative}
-    input{width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafcff;font-size:1rem;outline:none;transition:border .15s, box-shadow .15s, background .15s}
-    input:focus{border-color:var(--accent); box-shadow:0 0 0 4px var(--ring); background:#fff}
+    input,button{width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafcff;font-size:1rem;outline:none;transition:border .15s,box-shadow .15s,background .15s}
+    input:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--ring);background:#fff}
     input.is-bad{border-color:var(--bad)}
     .hint{font-size:.8rem;color:var(--muted);margin-top:6px}
     .error{font-size:.8rem;color:var(--bad);margin-top:6px;display:none}
     .error.show{display:block}
-    .result{margin-top:16px;padding:14px;border-radius:12px;background:linear-gradient(180deg, var(--accent-2), #e9f4ff);border:1px solid rgba(106,166,255,.35)}
-    .result h2{margin:0 0 6px 0;font-size:1.05rem}
+    .result{margin-top:16px;padding:14px;border-radius:12px;background:linear-gradient(180deg,var(--accent-2),#e9f4ff);border:1px solid rgba(106,166,255,.35)}
+    .result h2{margin:0 0 6px;font-size:1.05rem}
     .kv{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px dashed rgba(0,0,0,.08)}
     .kv:first-of-type{border-top:none}
     .kv b{font-variant-numeric:tabular-nums}
-    .ok{color:var(--ok)}
-    .muted{color:var(--muted)}
-    .footer{margin-top:14px;font-size:.8rem;color:var(--muted);text-align:center}
-    @media (max-width: 430px){.grid{grid-template-columns:1fr}}
+    .ok{color:var(--ok)} .muted{color:var(--muted)}
+    .row{padding:12px;border:1px dashed rgba(0,0,0,.08);border-radius:12px;background:#fbfdff}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    button.primary{background:linear-gradient(180deg,#6aa6ff,#4f8df3);color:#fff;border:none}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .badge{display:inline-flex;align-items:center;gap:8px;font-size:.9rem;padding:8px 10px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;color:#374151}
+    .badge.ok{border-color:rgba(16,185,129,.25);color:#065f46;background:rgba(16,185,129,.06)}
+    .badge.err{border-color:rgba(239,68,68,.25);color:#7f1d1d;background:rgba(239,68,68,.06)}
+    .spinner{width:16px;height:16px;border:2px solid #cfe2ff;border-top-color:#3b82f6;border-radius:50%;display:inline-block;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media (max-width:520px){.grid{grid-template-columns:1fr}}
+    code.small{font-size:.8rem}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card" role="form" aria-labelledby="ttl">
       <h1 id="ttl">Conversión de kilos a litros por densidade</h1>
-      <p class="sub">Introduce graxa, proteína, temperatura e kilos.</p>
+      <p class="sub">Introduce graxa, proteína, temperatura e kilos. Carga un CSV (exportado de <strong>Lely Horizon</strong>) para sumar producións entre dúas recollidas.</p>
 
-      <div class="grid">
+      <!-- BLOQUE 1: Densidade / Litros -->
+      <div class="grid row">
         <div class="field">
           <label for="grasa">Graxa (%)</label>
-          <input id="grasa" inputmode="decimal" autocomplete="off" placeholder="ex. 4,50"
-                 aria-describedby="e-grasa h-grasa" />
+          <input id="grasa" inputmode="decimal" placeholder="ex. 3,50" aria-describedby="e-grasa h-grasa" />
           <div id="e-grasa" class="error"></div>
           <div id="h-grasa" class="hint">Formato: N ou N,xx • 0–10,00 • sen letras</div>
         </div>
 
         <div class="field">
           <label for="proteina">Proteína (%)</label>
-          <input id="proteina" inputmode="decimal" autocomplete="off" placeholder="ex. 3.60"
-                 aria-describedby="e-proteina h-proteina" />
+          <input id="proteina" inputmode="decimal" placeholder="ex. 3,30" aria-describedby="e-proteina h-proteina" />
           <div id="e-proteina" class="error"></div>
           <div id="h-proteina" class="hint">Formato: N ou N,xx • 0–10,00 • sen letras</div>
         </div>
 
         <div class="field">
           <label for="temp">Temperatura (°C)</label>
-          <input id="temp" inputmode="decimal" autocomplete="off" placeholder="ex. 4,0"
-                 aria-describedby="e-temp h-temp" />
+          <input id="temp" inputmode="decimal" placeholder="ex. 4,0" aria-describedby="e-temp h-temp" />
           <div id="e-temp" class="error"></div>
           <div id="h-temp" class="hint">0–50,0 • máximo 1 decimal • sen negativos</div>
         </div>
 
         <div class="field">
           <label for="kilos">Kilos de leite (kg)</label>
-          <input id="kilos" inputmode="numeric" autocomplete="off" placeholder="ex. 5074"
-                 aria-describedby="e-kilos h-kilos" />
+          <input id="kilos" inputmode="numeric" placeholder="ex. 0" aria-describedby="e-kilos h-kilos" />
           <div id="e-kilos" class="error"></div>
           <div id="h-kilos" class="hint">Enteiro 0–100000 • sen decimais nin signos</div>
         </div>
 
-        <div class="result full">
+        <div class="result full" aria-live="polite">
           <h2>Resultado</h2>
           <div class="kv"><span>🧪 Densidade estimada (g/ml):</span><b id="out-densidade" class="muted">—</b></div>
           <div class="kv"><span>🥛 Litros estimados (L):</span><b id="out-litros" class="muted">—</b></div>
@@ -94,119 +90,310 @@
         </div>
       </div>
 
+      <!-- BLOQUE 2: CSV + Fiestras de recollida -->
+      <div class="grid row" style="margin-top:14px">
+        <div class="field full">
+          <label for="csv">CSV de visitas (Lely Horizon, formato exacto)</label>
+          <input id="csv" type="file" accept=".csv" />
+          <div class="hint">
+            Cabeceira obrigatoria (Horizon): <code class="small">"Número de vaca","Fecha/hora de visita","Producción de leche","Tiempo en cubículo"</code>
+          </div>
+          <div id="csv-status" class="hint" aria-live="polite"></div>
+        </div>
+
+        <div class="field">
+          <label for="dt1">1ª recollida (data e hora)</label>
+          <input id="dt1" type="datetime-local" />
+        </div>
+        <div class="field">
+          <label for="dt2">2ª recollida (data e hora)</label>
+          <input id="dt2" type="datetime-local" />
+          <div class="hint">Non pode ser anterior á 1ª recollida.</div>
+        </div>
+
+        <div class="field full actions">
+          <button id="btn-calc" class="primary" disabled>Calcular</button>
+          <span id="busy" class="badge" style="display:none"><span class="spinner"></span> Procesando…</span>
+          <span id="ok-badge" class="badge ok" style="display:none">✔ CSV correcto</span>
+          <span id="err-badge" class="badge err" style="display:none">✖ Erro no CSV</span>
+        </div>
+
+        <div class="result full" aria-live="polite" id="sum-panel" style="display:none">
+          <h2>Resumo do cálculo</h2>
+          <div class="kv"><span>📅 Intervalo:</span><b id="out-range">—</b></div>
+          <div class="kv"><span>🧮 Filas consideradas:</span><b id="out-rows">—</b></div>
+          <div class="kv"><span>⚖️ Kilos totais (CSV):</span><b id="out-kilos-csv" class="ok">—</b></div>
+          <div class="kv"><span>Estado:</span><b id="out-estado-csv" class="ok">—</b></div>
+        </div>
+      </div>
+
       <div class="footer">
-  <strong>Modelo de densidade.</strong>
-  Base: <b>1,032 g/ml</b> a <b>20&nbsp;°C</b> (G=3,5&nbsp;%, P=3,3&nbsp;%).
-  Axustes: por cada +1&nbsp;°C → −0,0002 g/ml; por cada −1&nbsp;°C → +0,0002 g/ml.
-  Por cada +1&nbsp;% de graxa → −0,0046 g/ml; −1&nbsp;% → +0,0046 g/ml.
-  Por cada +1&nbsp;% de proteína → +0,0010 g/ml; −1&nbsp;% → −0,0010 g/ml.
-  <br>
-  Fórmula: <code>ρ = 1,032 + (G−3,5)·(−0,0046) + (P−3,3)·(0,0010) + (T−20)·(−0,0002)</code>
-  (onde G e P van en %, e T en °C).
-</div>
+        <strong>Modelo de densidade.</strong>
+        Base: <b>1,032 g/ml</b> a <b>20&nbsp;°C</b> (G=3,5&nbsp;%, P=3,3&nbsp;%).
+        Axustes: por cada +1&nbsp;°C → −0,0002 g/ml; por cada −1&nbsp;°C → +0,0002 g/ml.
+        Por cada +1&nbsp;% de graxa → −0,0046 g/ml; −1&nbsp;% → +0,0046 g/ml.
+        Por cada +1&nbsp;% de proteína → +0,0010 g/ml; −1&nbsp;% → −0,0010 g/ml.
+        <br>
+        Fórmula: <code>ρ = 1,032 + (G−3,5)·(−0,0046) + (P−3,3)·(0,0010) + (T−20)·(−0,0002)</code>
+        (onde G e P van en %, e T en °C).
+      </div>
     </div>
   </div>
 
   <script>
-    const rxGraxaProt = /^(?:\d(?:[.,]\d{1,2})?|10(?:[.,]0{1,2})?)$/;
-    const rxTemp      = /^(?:\d|[1-4]\d|50)(?:[.,]\d)?$/;
-    const rxKilos     = /^(?:\d{1,5}|100000)$/;
+    /* ==========
+      PARTE 1: Densidade / Litros
+    ========== */
+    const rxGraxaProt=/^(?:\d(?:[.,]\d{1,2})?|10(?:[.,]0{1,2})?)$/;
+    const rxTemp=/^(?:\d|[1-4]\d|50)(?:[.,]\d)?$/;
+    const rxKilos=/^(?:\d{1,5}|100000)$/;
+    const $=(id)=>document.getElementById(id);
 
-    function normaliza(v){ return v.replace(',', '.'); }
-
+    function normaliza(v){return v.replace(',', '.');}
     function filterDecimal2(e){
-      let v = e.target.value.replace(',', '.').replace(/[^\d.]/g,'');
-      const parts = v.split('.');
-      let out = parts[0].replace(/^0+(?=\d)/,'');
-      if(parts.length > 1){
-        out += '.' + parts.slice(1).join('').slice(0,2);
-      }
-      if(out === '.') out='';
-      e.target.value = out;
+      let v=e.target.value.replace(',', '.').replace(/[^\d.]/g,'');
+      const parts=v.split('.'); let out=parts[0].replace(/^0+(?=\d)/,'');
+      if(parts.length>1){out+='.'+parts.slice(1).join('').slice(0,2);}
+      if(out==='.') out=''; e.target.value=out;
     }
     function filterDecimal1(e){
-      let v = e.target.value.replace(',', '.').replace(/[^\d.]/g,'');
-      const parts = v.split('.');
-      let out = parts[0].replace(/^0+(?=\d)/,'');
-      if(parts.length > 1){
-        out += '.' + parts.slice(1).join('').slice(0,1);
-      }
-      if(out === '.') out='';
-      e.target.value = out;
+      let v=e.target.value.replace(',', '.').replace(/[^\d.]/g,'');
+      const parts=v.split('.'); let out=parts[0].replace(/^0+(?=\d)/,'');
+      if(parts.length>1){out+='.'+parts.slice(1).join('').slice(0,1);}
+      if(out==='.') out=''; e.target.value=out;
     }
-    function filterInteger(e){
-      e.target.value = e.target.value.replace(/[^\d]/g,'').replace(/^0+(?=\d)/,'');
-    }
+    function filterInteger(e){e.target.value=e.target.value.replace(/[^\d]/g,'').replace(/^0+(?=\d)/,'');}
 
     function calcularDensidade(graxa, proteina, temp){
-      const base = new Decimal(1.032);
-      const dGraxa = new Decimal(graxa).minus(3.5).times(-0.0046);
-      const dProt  = new Decimal(proteina).minus(3.3).times(0.0010);
-      const dTemp  = new Decimal(temp).minus(20).times(-0.0002);
+      const base=new Decimal(1.032);
+      const dGraxa=new Decimal(graxa).minus(3.5).times(-0.0046);
+      const dProt=new Decimal(proteina).minus(3.3).times(0.0010);
+      const dTemp=new Decimal(temp).minus(20).times(-0.0002);
       return base.plus(dGraxa).plus(dProt).plus(dTemp);
     }
-    function kilosALitros(k, g, p, t){
-      const d = calcularDensidade(g,p,t);
-      if(d.lte(0)) return new Decimal(0);
+    function kilosALitros(k,g,p,t){
+      const d=calcularDensidade(g,p,t); if(d.lte(0)) return new Decimal(0);
       return new Decimal(k).div(d);
     }
 
-    const $=(id)=>document.getElementById(id);
     const el={
       g:$('grasa'),p:$('proteina'),t:$('temp'),k:$('kilos'),
       eg:$('e-grasa'),ep:$('e-proteina'),et:$('e-temp'),ek:$('e-kilos'),
-      od:$('out-densidade'), ol:$('out-litros'), os:$('out-estado')
+      od:$('out-densidade'),ol:$('out-litros'),os:$('out-estado')
     };
+
+    // Valores por defecto
+    window.addEventListener('DOMContentLoaded', ()=>{
+      el.g.value = '3.50';
+      el.p.value = '3.30';
+      el.t.value = '4.0';
+      el.k.value = '0';
+      recalc();
+    });
 
     el.g.addEventListener('input',filterDecimal2);
     el.p.addEventListener('input',filterDecimal2);
     el.t.addEventListener('input',filterDecimal1);
     el.k.addEventListener('input',filterInteger);
-
     [el.g,el.p,el.t,el.k].forEach(i=>i.addEventListener('input',recalc));
 
-    function valGraxa(){
-      const v=el.g.value.trim(); if(!v){limpa(el.g,el.eg); return null;}
-      if(!rxGraxaProt.test(v)){erro(el.g,el.eg,'Formato: 0–10,00 con 2 decimais');return false;}
-      const n=Number(normaliza(v)); if(n<0||n>10){erro(el.g,el.eg,'Rango: 0 a 10,00');return false;}
+    function valGraxa(){const v=el.g.value.trim(); if(!v){limpa(el.g,el.eg); return null;}
+      if(!rxGraxaProt.test(v)){erro(el.g,el.eg,'Formato: 0–10,00 con 2 decimais'); return false;}
+      const n=Number(normaliza(v)); if(n<0||n>10){erro(el.g,el.eg,'Rango: 0 a 10,00'); return false;}
       limpa(el.g,el.eg); return n;
     }
-    function valProte(){
-      const v=el.p.value.trim(); if(!v){limpa(el.p,el.ep); return null;}
-      if(!rxGraxaProt.test(v)){erro(el.p,el.ep,'Formato: 0–10,00 con 2 decimais');return false;}
-      const n=Number(normaliza(v)); if(n<0||n>10){erro(el.p,el.ep,'Rango: 0 a 10,00');return false;}
+    function valProte(){const v=el.p.value.trim(); if(!v){limpa(el.p,el.ep); return null;}
+      if(!rxGraxaProt.test(v)){erro(el.p,el.ep,'Formato: 0–10,00 con 2 decimais'); return false;}
+      const n=Number(normaliza(v)); if(n<0||n>10){erro(el.p,el.ep,'Rango: 0 a 10,00'); return false;}
       limpa(el.p,el.ep); return n;
     }
-    function valTemp(){
-      const v=el.t.value.trim(); if(!v){limpa(el.t,el.et); return null;}
-      if(!rxTemp.test(v)){erro(el.t,el.et,'Formato: 0–50,0 cun decimal');return false;}
-      const n=Number(normaliza(v)); if(n<0||n>50){erro(el.t,el.et,'Rango: 0 a 50,0');return false;}
+    function valTemp(){const v=el.t.value.trim(); if(!v){limpa(el.t,el.et); return null;}
+      if(!rxTemp.test(v)){erro(el.t,el.et,'Formato: 0–50,0 cun decimal'); return false;}
+      const n=Number(normaliza(v)); if(n<0||n>50){erro(el.t,el.et,'Rango: 0 a 50,0'); return false;}
       limpa(el.t,el.et); return n;
     }
-    function valKilos(){
-      const v=el.k.value.trim(); if(!v){limpa(el.k,el.ek); return null;}
-      if(!rxKilos.test(v)){erro(el.k,el.ek,'Enteiro 0–100000');return false;}
-      const n=Number(v); if(n<0||n>100000){erro(el.k,el.ek,'Rango: 0 a 100000');return false;}
+    function valKilos(){const v=el.k.value.trim(); if(!v){limpa(el.k,el.ek); return null;}
+      if(!rxKilos.test(v)){erro(el.k,el.ek,'Enteiro 0–100000'); return false;}
+      const n=Number(v); if(n<0||n>100000){erro(el.k,el.ek,'Rango: 0 a 100000'); return false;}
       limpa(el.k,el.ek); return n;
     }
-
-    function erro(inp,box,msg){inp.classList.add('is-bad');box.textContent=msg;box.classList.add('show');}
-    function limpa(inp,box){inp.classList.remove('is-bad');box.textContent='';box.classList.remove('show');}
+    function erro(inp,box,msg){inp.classList.add('is-bad'); box.textContent=msg; box.classList.add('show');}
+    function limpa(inp,box){inp.classList.remove('is-bad'); box.textContent=''; box.classList.remove('show');}
 
     function recalc(){
       const g=valGraxa(), p=valProte(), t=valTemp(), k=valKilos();
-      if(g===null||p===null||t===null||k===null){out(null,null,'Introduce valores…',true);return;}
-      if(g===false||p===false||t===false||k===false){out(null,null,'Revisa os campos en vermello',false,true);return;}
+      if(g===null||p===null||t===null||k===null){out(null,null,'Introduce valores…',true); return;}
+      if(g===false||p===false||t===false||k===false){out(null,null,'Revisa os campos en vermello',false,true); return;}
       const d=calcularDensidade(g,p,t); const l=kilosALitros(k,g,p,t);
       out(d,l,'Cálculo correcto ✅',false);
     }
-    function fmt(num,dec=3){if(num===null)return '—';return new Decimal(num).toFixed(dec);}
+    function fmt(num,dec=3){if(num===null)return '—'; return new Decimal(num).toFixed(dec);}
     function out(d,l,st,muted=false,err=false){
-      el.od.textContent=d?fmt(d,3):'—'; el.ol.textContent=l?fmt(l,2):'—';
-      el.od.className=muted?'muted':''; el.ol.className=muted?'muted':'ok';
-      el.os.textContent=st; el.os.className=err?'':(muted?'muted':'ok');
+      $('out-densidade').textContent=d?fmt(d,3):'—';
+      $('out-litros').textContent=l?fmt(l,2):'—';
+      $('out-densidade').className=muted?'muted':'';
+      $('out-litros').className=muted?'muted':'ok';
+      $('out-estado').textContent=st;
+      $('out-estado').className=err?'':(muted?'muted':'ok');
     }
-    recalc();
+
+    /* ==========
+      PARTE 2: CSV + cálculo entre recollidas (validación automática)
+    ========== */
+    const csvInput=$('csv'), btnCalc=$('btn-calc'), busyBadge=$('busy'),
+          okBadge=$('ok-badge'), errBadge=$('err-badge'), csvStatus=$('csv-status'),
+          dt1=$('dt1'), dt2=$('dt2'),
+          sumPanel=$('sum-panel'), outRange=$('out-range'), outRows=$('out-rows'),
+          outKilosCsv=$('out-kilos-csv'), outEstadoCsv=$('out-estado-csv');
+
+    let busy=false, parsedRows=null;
+
+    function setBusy(v){
+      busy=v;
+      csvInput.disabled=v; btnCalc.disabled=v || !(parsedRows && datesOk());
+      dt1.disabled=v; dt2.disabled=v;
+      busyBadge.style.display=v?'inline-flex':'none';
+    }
+
+    // ---- Regras de datas: dt2 non pode ser inferior a dt1 ----
+    function setMinForDt2(){
+      if(!dt1.value){ dt2.min=''; return; }
+      dt2.min = dt1.value;
+      if(dt2.value && dt2.value < dt1.value){ dt2.value = dt1.value; }
+    }
+    function datesOk(){
+      const a=getPickerDate(dt1.value), b=getPickerDate(dt2.value);
+      return a && b && b.getTime() >= a.getTime();
+    }
+    function refreshCalcButton(){ btnCalc.disabled = busy || !(parsedRows && datesOk()); }
+
+    dt1.addEventListener('change', ()=>{ setMinForDt2(); refreshCalcButton(); });
+    dt2.addEventListener('change', refreshCalcButton);
+
+    // Validación automática ao seleccionar ficheiro
+    csvInput.addEventListener('change', async ()=>{
+      parsedRows=null; okBadge.style.display='none'; errBadge.style.display='none';
+      csvStatus.textContent='';
+      refreshCalcButton();
+      const f=csvInput.files && csvInput.files[0];
+      if(!f) return;
+      if(!f.name.toLowerCase().endsWith('.csv')){
+        showErr('A extensión debe ser .csv.'); return;
+      }
+      setBusy(true); showInfo('Comprobando formato do CSV (Lely Horizon)…');
+      try{
+        const text=await f.text();
+        const res=validateAndParseCSV(text);
+        parsedRows=res.rows;
+        showOk(`CSV correcto. Filas: ${parsedRows.length}.`);
+        okBadge.style.display='inline-flex'; errBadge.style.display='none';
+      }catch(e){
+        parsedRows=null;
+        showErr(e.message || 'Erro descoñecido ao validar o CSV.');
+        okBadge.style.display='none'; errBadge.style.display='inline-flex';
+      }finally{
+        setBusy(false); refreshCalcButton();
+      }
+    });
+
+    // Cálculo CSV -> encher "kilos" e recalcular densidade->litros
+    btnCalc.addEventListener('click', ()=>{
+      if(!parsedRows){ showErr('Debes cargar un CSV válido.'); return; }
+      if(!datesOk()){ showErr('Datas non válidas: a 2ª recollida non pode ser anterior á 1ª.'); return; }
+      setBusy(true); okBadge.style.display='none'; errBadge.style.display='none'; sumPanel.style.display='none';
+      setTimeout(()=>{
+        try{
+          const a=getPickerDate(dt1.value), b=getPickerDate(dt2.value);
+          const {totalKilos, contadas}=computeSum(parsedRows, a, b);
+          outRange.textContent=`${fmtDate(a)} → ${fmtDate(b)}`;
+          outRows.textContent=String(contadas);
+          outKilosCsv.textContent=new Decimal(totalKilos).toFixed(2);
+          outEstadoCsv.textContent='Cálculo rematado ✅';
+          sumPanel.style.display='block';
+
+          // Poñemos os kilos totais no input (redondeo a enteiro para pasar validación) e recalculamos litros por densidade
+          const kRounded = Math.round(totalKilos);
+          el.k.value = String(kRounded);
+          recalc();
+        }catch(e){
+          showErr(e.message || 'Produciuse un erro no cálculo.');
+        }finally{
+          setBusy(false);
+        }
+      },50);
+    });
+
+    function showInfo(msg){csvStatus.className='hint'; csvStatus.textContent=msg;}
+    function showOk(msg){csvStatus.className='ok'; csvStatus.textContent=msg;}
+    function showErr(msg){csvStatus.className='error show'; csvStatus.textContent=msg;}
+
+    // --- CSV parsing & validación ---
+    function validateAndParseCSV(text){
+      const lines=text.replace(/\r\n?/g,'\n').split('\n').filter(l=>l.trim().length>0);
+      if(lines.length<2) throw new Error('O CSV está baleiro ou sen datos.');
+      const header=lines[0].trim();
+      const expectedHeader='"Número de vaca","Fecha/hora de visita","Producción de leche","Tiempo en cubículo"';
+      if(header!==expectedHeader)
+        throw new Error('Cabeceira incorrecta. Ten que ser o CSV exportado de Lely Horizon con esta cabeceira exacta: '+expectedHeader);
+
+      const rows=[];
+      for(let i=1;i<lines.length;i++){
+        const raw=lines[i].trim();
+        const parts=raw.split(',').map(s=>s.trim().replace(/^"(.*)"$/,'$1'));
+        if(parts.length!==4) throw new Error(`Fila ${i+1}: número de columnas incorrecto.`);
+        const [numVaca,fechaHora,prod,tempoCub]=parts;
+
+        if(!/^\d+$/.test(numVaca)) throw new Error(`Fila ${i+1}: "Número de vaca" debe ser enteiro.`);
+        if(!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(fechaHora)) throw new Error(`Fila ${i+1}: "Fecha/hora de visita" debe ser YYYY-MM-DD HH:MM.`);
+        if(!/^\d+(?:\.\d+)?$/.test(prod)) throw new Error(`Fila ${i+1}: "Producción de leche" debe ser número con punto decimal (ex. 5.2).`);
+        if(!/^\d{1,2}:\d{2}$/.test(tempoCub)) throw new Error(`Fila ${i+1}: "Tiempo en cubículo" debe ser H:MM ou HH:MM.`);
+
+        const visita=parseYmdHmLocal(fechaHora);
+        const kilos=parseFloat(prod);        // interpretamos "Producción de leche" como kilos por visita
+        const cubMin=hmToMinutes(tempoCub);  // minutos no cubículo
+        rows.push({vaca:parseInt(numVaca,10), visita, kilos, cubMin});
+      }
+      return {rows};
+    }
+
+    // Datas utilidades
+    function parseYmdHmLocal(s){
+      const [d,h]=s.split(' '), [Y,M,D]=d.split('-').map(n=>parseInt(n,10));
+      const [HH,MM]=h.split(':').map(n=>parseInt(n,10));
+      return new Date(Y,M-1,D,HH,MM,0,0);
+    }
+    function hmToMinutes(hm){const [h,m]=hm.split(':').map(n=>parseInt(n,10)); return h*60+m;}
+    function getPickerDate(val){
+      if(!val) return null;
+      const [d,h]=val.split('T'); if(!d||!h) return null;
+      const [Y,M,DD]=d.split('-').map(n=>parseInt(n,10));
+      const [HH,MM]=h.split(':').map(n=>parseInt(n,10));
+      if([Y,M,DD,HH,MM].some(Number.isNaN)) return null;
+      return new Date(Y,M-1,DD,HH,MM,0,0);
+    }
+    function addMinutes(d,mins){return new Date(d.getFullYear(),d.getMonth(),d.getDate(),d.getHours(),d.getMinutes()+mins,d.getSeconds(),d.getMilliseconds());}
+    function fmt2(n){return String(n).padStart(2,'0');}
+    function fmtDate(d){return `${d.getFullYear()}-${fmt2(d.getMonth()+1)}-${fmt2(d.getDate())} ${fmt2(d.getHours())}:${fmt2(d.getMinutes())}`;}
+
+    // Novo algoritmo:
+    // Inclúe só se: visita >= dtIni e visita < dtFin.
+    // Pero EXCLÚE se: visita + cubMin > dtFin (aínda que visita < dtFin).
+    function computeSum(rows, dtIni, dtFin){
+      let totalKilos=new Decimal(0), contadas=0;
+      for(const r of rows){
+        const t=r.visita.getTime();
+        if(t < dtIni.getTime()) continue;
+        if(t >= dtFin.getTime()) continue;
+        const visitaMaisCub = addMinutes(r.visita, r.cubMin);
+        if(visitaMaisCub.getTime() > dtFin.getTime()) continue; // excede a 2ª recollida → fóra
+        totalKilos = totalKilos.plus(r.kilos);
+        contadas++;
+      }
+      return { totalKilos: totalKilos.toNumber(), contadas };
+    }
+
+    // Inicializar restrición de dt2 en carga
+    setMinForDt2();
   </script>
 </body>
 </html>
