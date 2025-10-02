@@ -21,8 +21,8 @@
     .grid{display:grid;gap:12px;grid-template-columns:1fr 1fr}
     .grid .full{grid-column:1/-1}
     label{display:block;font-size:.9rem;margin:0 0 6px 2px;color:#334155}
-    input,button,select{width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafcff;font-size:1rem;outline:none;transition:border .15s,box-shadow .15s,background .15s}
-    input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--ring);background:#fff}
+    input,button{width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafcff;font-size:1rem;outline:none;transition:border .15s,box-shadow .15s,background .15s}
+    input:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--ring);background:#fff}
     input.is-bad{border-color:var(--bad)}
     .hint{font-size:.8rem;color:var(--muted);margin-top:6px}
     .error{font-size:.8rem;color:var(--bad);margin-top:6px;display:none}
@@ -45,11 +45,6 @@
     @keyframes spin{to{transform:rotate(360deg)}}
     @media (max-width:560px){.grid{grid-template-columns:1fr}}
     code.small{font-size:.8rem}
-    .debug{background:#f8fafc;border:1px dashed #e5e7eb;border-radius:12px;padding:12px;margin-top:8px}
-    .debug h3{margin:0 0 6px;font-size:1rem}
-    .tbl{width:100%;border-collapse:collapse;font-size:.9rem}
-    .tbl th,.tbl td{border-top:1px solid #eef2f7;padding:6px 8px;text-align:left;white-space:nowrap}
-    .tbl th{font-weight:600}
   </style>
 </head>
 <body>
@@ -123,23 +118,6 @@
           <span id="busy" class="badge" style="display:none"><span class="spinner"></span> Procesando…</span>
           <span id="ok-badge" class="badge ok" style="display:none">✔ CSV correcto</span>
           <span id="err-badge" class="badge err" style="display:none">✖ Erro no CSV</span>
-          <label class="badge" style="margin-left:auto;cursor:pointer">
-            <input id="debug-toggle" type="checkbox" style="margin-right:8px"> Modo comprobación
-          </label>
-        </div>
-
-        <div id="debug-panel" class="debug full" style="display:none">
-          <h3>Mostrando as primeiras 20 filas incluídas e excluídas</h3>
-          <div style="display:grid;gap:12px;grid-template-columns:1fr 1fr">
-            <div>
-              <strong>Incluídas</strong>
-              <table class="tbl" id="tbl-in"></table>
-            </div>
-            <div>
-              <strong>Excluídas</strong>
-              <table class="tbl" id="tbl-ex"></table>
-            </div>
-          </div>
         </div>
 
         <div class="result full" aria-live="polite" id="sum-panel" style="display:none">
@@ -263,17 +241,15 @@
 
     /* ==========
       PARTE 2: CSV + cálculo entre recollidas (validación automática)
-      (VERSIÓN ANTERIOR + logs de excluídas)
+      (sen modo comprobación; con logs e JSON final)
     ========== */
     const csvInput=$('csv'), btnCalc=$('btn-calc'), busyBadge=$('busy'),
           okBadge=$('ok-badge'), errBadge=$('err-badge'), csvStatus=$('csv-status'),
           dt1=$('dt1'), dt2=$('dt2'),
           sumPanel=$('sum-panel'), outRange=$('out-range'), outRows=$('out-rows'),
-          outKilosCsv=$('out-kilos-csv'), outEstadoCsv=$('out-estado-csv'),
-          dbgToggle=$('debug-toggle'), dbgPanel=$('debug-panel'),
-          tblIn=$('tbl-in'), tblEx=$('tbl-ex');
+          outKilosCsv=$('out-kilos-csv'), outEstadoCsv=$('out-estado-csv');
 
-    let busy=false, parsedRows=null, lastIncluded=[], lastExcluded=[];
+    let busy=false, parsedRows=null;
 
     function setBusy(v){
       busy=v;
@@ -295,12 +271,11 @@
 
     dt1.addEventListener('change', ()=>{ setMinForDt2(); refreshCalcButton(); });
     dt2.addEventListener('change', refreshCalcButton);
-    dbgToggle.addEventListener('change', ()=>{ dbgPanel.style.display = dbgToggle.checked?'block':'none'; if(dbgToggle.checked) renderDebug(); });
 
     // Validación automática ao seleccionar ficheiro
     csvInput.addEventListener('change', async ()=>{
       parsedRows=null; okBadge.style.display='none'; errBadge.style.display='none';
-      csvStatus.textContent=''; sumPanel.style.display='none'; dbgPanel.style.display='none'; dbgToggle.checked=false;
+      csvStatus.textContent=''; sumPanel.style.display='none';
       refreshCalcButton();
       const f=csvInput.files && csvInput.files[0];
       if(!f) return;
@@ -331,19 +306,24 @@
       setTimeout(()=>{
         try{
           const a=getPickerDate(dt1.value), b=getPickerDate(dt2.value);
-          const {totalKilos, contadas, incl, excl}=computeSum(parsedRows, a, b);
-          lastIncluded = incl.slice(0,200); lastExcluded = excl.slice(0,200);
+          const {totalKilos, contadas, debug} = computeSum(parsedRows, a, b);
 
+          // Resumo UI
           outRange.textContent=`${fmtDate(a)} → ${fmtDate(b)}`;
           outRows.textContent=String(contadas);
           outKilosCsv.textContent=new Decimal(totalKilos).toFixed(2);
           outEstadoCsv.textContent='Cálculo rematado ✅';
           sumPanel.style.display='block';
-          if(dbgToggle.checked) renderDebug();
 
+          // Pasa kilos ao campo e recalcula densidade->litros
           const kRounded = Math.round(totalKilos);
-          $('kilos').value = String(kRounded);
+          el.k.value = String(kRounded);
           recalc();
+
+          // ---- LOG FINAL JSON para análise ----
+          console.log('%cResumo JSON','color:#059669;font-weight:bold');
+          console.log(JSON.stringify(debug, null, 2));
+
         }catch(e){
           showErr(e.message || 'Produciuse un erro no cálculo.');
         }finally{
@@ -351,33 +331,6 @@
         }
       },50);
     });
-
-    function renderDebug(){
-      const max=20;
-      const headers=['Nº vaca','Visita','Produción (kg)','Tempo cub.','Fin (visita+cub.)','Razón exclusión?'];
-      function draw(table, arr, isExcluded){
-        table.innerHTML='';
-        const thead=document.createElement('thead');
-        const trh=document.createElement('tr');
-        headers.forEach(h=>{const th=document.createElement('th'); th.textContent=h; trh.appendChild(th);});
-        thead.appendChild(trh); table.appendChild(thead);
-        const tbody=document.createElement('tbody');
-        arr.slice(0,max).forEach(r=>{
-          const tr=document.createElement('tr');
-          const fin = addMinutes(r.visita, r.cubMin);
-          const reason = r._reason || (isExcluded ? '—' : '');
-          [r.vaca, fmtDate(r.visita), r.kilos.toFixed(1), hm(r.cubMin), fmtDate(fin), reason].forEach(v=>{
-            const td=document.createElement('td'); td.textContent=v; tr.appendChild(td);
-          });
-          tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
-      }
-      draw(tblIn, lastIncluded, false);
-      draw(tblEx, lastExcluded, true);
-    }
-
-    function hm(mins){ const h=Math.floor(mins/60), m=String(mins%60).padStart(2,'0'); return `${h}:${m}`; }
 
     function showInfo(msg){csvStatus.className='hint'; csvStatus.textContent=msg;}
     function showOk(msg){csvStatus.className='ok'; csvStatus.textContent=msg;}
@@ -433,50 +386,61 @@
     function fmt2(n){return String(n).padStart(2,'0');}
     function fmtDate(d){return `${d.getFullYear()}-${fmt2(d.getMonth()+1)}-${fmt2(d.getDate())} ${fmt2(d.getHours())}:${fmt2(d.getMinutes())}`;}
 
-    // ALGORITMO (versión anterior):
+    // ALGORITMO (versión “anterior”):
     // Inclúe se: visita >= dtIni e visita < dtFin.  [inicio, fin)
     // EXCLÚE se: visita + tempo_en_cubículo (min) > dtFin.
-    // Ademais: LOG a consola de TODAS as excluídas coa razón.
+    // Ademais: LOG por exclusión e JSON final para análise.
     function computeSum(rows, dtIni, dtFin){
       let total=new Decimal(0), contadas=0;
-      const incl=[], excl=[];
-      const tIni = dtIni.getTime(), tFin = dtFin.getTime();
 
-      console.groupCollapsed('%cAnálise de exclusións','color:#2563eb');
+      const tIni = dtIni.getTime(), tFin = dtFin.getTime();
+      const included=[], excluded=[];
+      let excBefore=0, excAfterOrEqual=0, excCubiculo=0;
+
+      console.groupCollapsed('%cExclusións CSV','color:#2563eb');
 
       for(const r of rows){
         const t=r.visita.getTime();
 
-        // Fóra do intervalo
+        // fóra do intervalo [inicio, fin)
         if(t < tIni){
-          const reason='antes da 1ª recollida';
-          excl.push(Object.assign({_reason:reason}, r));
-          console.log(`[EXCLUÍDA] ${fmtDate(r.visita)} | ${r.kilos.toFixed(1)} kg | ${reason}`);
+          excBefore++;
+          excluded.push({vaca:r.vaca, visita:fmtDate(r.visita), kilos:+r.kilos.toFixed(1), cubiculo_min:r.cubMin, fin_visita:fmtDate(addMinutes(r.visita,r.cubMin)), razon:'antes_1'});
+          console.log(`[EXCLUÍDA] ${fmtDate(r.visita)} | ${r.kilos.toFixed(1)} kg | antes da 1ª recollida`);
           continue;
         }
         if(t >= tFin){
-          const reason='fóra do intervalo (≥ 2ª recollida)';
-          excl.push(Object.assign({_reason:reason}, r));
-          console.log(`[EXCLUÍDA] ${fmtDate(r.visita)} | ${r.kilos.toFixed(1)} kg | ${reason}`);
+          excAfterOrEqual++;
+          excluded.push({vaca:r.vaca, visita:fmtDate(r.visita), kilos:+r.kilos.toFixed(1), cubiculo_min:r.cubMin, fin_visita:fmtDate(addMinutes(r.visita,r.cubMin)), razon:'fora_intervalo_>=2'});
+          console.log(`[EXCLUÍDA] ${fmtDate(r.visita)} | ${r.kilos.toFixed(1)} kg | fóra do intervalo (≥ 2ª recollida)`);
           continue;
         }
 
-        // Excede a 2ª pola suma co cubículo
+        // supera a 2ª por tempo en cubículo
         const finVisita = addMinutes(r.visita, r.cubMin);
         if(finVisita.getTime() > tFin){
-          const reason='supera a 2ª recollida por tempo en cubículo';
-          excl.push(Object.assign({_reason:reason}, r));
-          console.log(`[EXCLUÍDA] ${fmtDate(r.visita)} | ${r.kilos.toFixed(1)} kg | ${reason} (fin: ${fmtDate(finVisita)})`);
+          excCubiculo++;
+          excluded.push({vaca:r.vaca, visita:fmtDate(r.visita), kilos:+r.kilos.toFixed(1), cubiculo_min:r.cubMin, fin_visita:fmtDate(finVisita), razon:'supera_2_por_cubiculo'});
+          console.log(`[EXCLUÍDA] ${fmtDate(r.visita)} | ${r.kilos.toFixed(1)} kg | supera a 2ª recollida por tempo en cubículo (fin: ${fmtDate(finVisita)})`);
           continue;
         }
 
-        // Incluída
+        // incluída
         total = total.plus(r.kilos);
-        contadas++; incl.push(r);
+        contadas++;
+        included.push({vaca:r.vaca, visita:fmtDate(r.visita), kilos:+r.kilos.toFixed(1), cubiculo_min:r.cubMin, fin_visita:fmtDate(finVisita)});
       }
       console.groupEnd();
 
-      return { totalKilos: total.toNumber(), contadas, incl, excl };
+      const debug = {
+        intervalo: { inicio: fmtDate(dtIni), fin: fmtDate(dtFin), regra_intervalo: "[inicio, fin)", regra_cubiculo: "excluir se (visita + cubículo) > fin" },
+        totais: { filas_total: rows.length, filas_incluidas: contadas, filas_excluidas: excluded.length },
+        excluidas_por_motivo: { antes_1: excBefore, fora_intervalo_maior_ou_igual_2: excAfterOrEqual, supera_2_por_cubiculo: excCubiculo },
+        kilos_incluidos: +total.toFixed(2),
+        listas: { incluidas: included, excluidas: excluded }
+      };
+
+      return { totalKilos: total.toNumber(), contadas, debug };
     }
 
     // Inicialización
