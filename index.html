@@ -15,7 +15,7 @@
     *{box-sizing:border-box}
     html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial}
     .wrap{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:18px}
-    .card{width:100%;max-width:680px;background:var(--card);border-radius:16px;padding:20px 18px;box-shadow:0 10px 30px rgba(0,0,0,.06),0 2px 6px rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.04)}
+    .card{width:100%;max-width:720px;background:var(--card);border-radius:16px;padding:20px 18px;box-shadow:0 10px 30px rgba(0,0,0,.06),0 2px 6px rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.04)}
     h1{font-size:1.2rem;margin:0 0 12px}
     p.sub{margin:0 0 16px;color:var(--muted);font-size:.95rem}
     .grid{display:grid;gap:12px;grid-template-columns:1fr 1fr}
@@ -40,9 +40,10 @@
     .badge{display:inline-flex;align-items:center;gap:8px;font-size:.9rem;padding:8px 10px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;color:#374151}
     .badge.ok{border-color:rgba(16,185,129,.25);color:#065f46;background:rgba(16,185,129,.06)}
     .badge.err{border-color:rgba(239,68,68,.25);color:#7f1d1d;background:rgba(239,68,68,.06)}
+    .beta{display:inline-block;font-size:.75rem;background:#fff3cd;border:1px solid #facc15;color:#854d0e;padding:6px 10px;border-radius:999px}
     .spinner{width:16px;height:16px;border:2px solid #cfe2ff;border-top-color:#3b82f6;border-radius:50%;display:inline-block;animation:spin .8s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
-    @media (max-width:520px){.grid{grid-template-columns:1fr}}
+    @media (max-width:560px){.grid{grid-template-columns:1fr}}
     code.small{font-size:.8rem}
   </style>
 </head>
@@ -93,6 +94,7 @@
       <!-- BLOQUE 2: CSV + Fiestras de recollida -->
       <div class="grid row" style="margin-top:14px">
         <div class="field full">
+          <div class="beta" style="margin-bottom:8px">VERSIÓN BETA: o módulo CSV está en probas</div>
           <label for="csv">CSV de visitas (Lely Horizon, formato exacto)</label>
           <input id="csv" type="file" accept=".csv" />
           <div class="hint">
@@ -311,7 +313,6 @@
           outEstadoCsv.textContent='Cálculo rematado ✅';
           sumPanel.style.display='block';
 
-          // Poñemos os kilos totais no input (redondeo a enteiro para pasar validación) e recalculamos litros por densidade
           const kRounded = Math.round(totalKilos);
           el.k.value = String(kRounded);
           recalc();
@@ -329,12 +330,15 @@
 
     // --- CSV parsing & validación ---
     function validateAndParseCSV(text){
+      if(text.charCodeAt(0)===0xFEFF){ text = text.slice(1); }
       const lines=text.replace(/\r\n?/g,'\n').split('\n').filter(l=>l.trim().length>0);
       if(lines.length<2) throw new Error('O CSV está baleiro ou sen datos.');
       const header=lines[0].trim();
-      const expectedHeader='"Número de vaca","Fecha/hora de visita","Producción de leche","Tiempo en cubículo"';
-      if(header!==expectedHeader)
-        throw new Error('Cabeceira incorrecta. Ten que ser o CSV exportado de Lely Horizon con esta cabeceira exacta: '+expectedHeader);
+      const cols = header.split(',').map(s=>s.trim().replace(/^"(.*)"$/,'$1'));
+      const exp = ["Número de vaca","Fecha/hora de visita","Producción de leche","Tiempo en cubículo"];
+      if(cols.length!==4 || exp.some((c,i)=>c!==cols[i])){
+        throw new Error('Cabeceira incorrecta. Ten que ser o CSV exportado de Lely Horizon con esta cabeceira exacta: "Número de vaca","Fecha/hora de visita","Producción de leche","Tiempo en cubículo"');
+      }
 
       const rows=[];
       for(let i=1;i<lines.length;i++){
@@ -349,8 +353,8 @@
         if(!/^\d{1,2}:\d{2}$/.test(tempoCub)) throw new Error(`Fila ${i+1}: "Tiempo en cubículo" debe ser H:MM ou HH:MM.`);
 
         const visita=parseYmdHmLocal(fechaHora);
-        const kilos=parseFloat(prod);        // interpretamos "Producción de leche" como kilos por visita
-        const cubMin=hmToMinutes(tempoCub);  // minutos no cubículo
+        const kilos=parseFloat(prod);
+        const cubMin=hmToMinutes(tempoCub);
         rows.push({vaca:parseInt(numVaca,10), visita, kilos, cubMin});
       }
       return {rows};
@@ -375,24 +379,24 @@
     function fmt2(n){return String(n).padStart(2,'0');}
     function fmtDate(d){return `${d.getFullYear()}-${fmt2(d.getMonth()+1)}-${fmt2(d.getDate())} ${fmt2(d.getHours())}:${fmt2(d.getMinutes())}`;}
 
-    // Novo algoritmo:
-    // Inclúe só se: visita >= dtIni e visita < dtFin.
-    // Pero EXCLÚE se: visita + cubMin > dtFin (aínda que visita < dtFin).
+    // ALGORITMO (definitivo):
+    // Inclúe se: visita >= dtIni e visita < dtFin.
+    // EXCLÚE se: visita + tempo_en_cubículo (en minutos) > dtFin.
     function computeSum(rows, dtIni, dtFin){
-      let totalKilos=new Decimal(0), contadas=0;
+      let total=new Decimal(0), contadas=0;
       for(const r of rows){
         const t=r.visita.getTime();
         if(t < dtIni.getTime()) continue;
         if(t >= dtFin.getTime()) continue;
-        const visitaMaisCub = addMinutes(r.visita, r.cubMin);
-        if(visitaMaisCub.getTime() > dtFin.getTime()) continue; // excede a 2ª recollida → fóra
-        totalKilos = totalKilos.plus(r.kilos);
+        const finVisita = addMinutes(r.visita, r.cubMin);
+        if(finVisita.getTime() > dtFin.getTime()) continue; // supera a 2ª → fóra
+        total = total.plus(r.kilos);
         contadas++;
       }
-      return { totalKilos: totalKilos.toNumber(), contadas };
+      return { totalKilos: total.toNumber(), contadas };
     }
 
-    // Inicializar restrición de dt2 en carga
+    // Inicialización
     setMinForDt2();
   </script>
 </body>
