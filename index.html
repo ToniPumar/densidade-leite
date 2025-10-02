@@ -15,14 +15,14 @@
     *{box-sizing:border-box}
     html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial}
     .wrap{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:18px}
-    .card{width:100%;max-width:720px;background:var(--card);border-radius:16px;padding:20px 18px;box-shadow:0 10px 30px rgba(0,0,0,.06),0 2px 6px rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.04)}
+    .card{width:100%;max-width:760px;background:var(--card);border-radius:16px;padding:20px 18px;box-shadow:0 10px 30px rgba(0,0,0,.06),0 2px 6px rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.04)}
     h1{font-size:1.2rem;margin:0 0 12px}
     p.sub{margin:0 0 16px;color:var(--muted);font-size:.95rem}
     .grid{display:grid;gap:12px;grid-template-columns:1fr 1fr}
     .grid .full{grid-column:1/-1}
     label{display:block;font-size:.9rem;margin:0 0 6px 2px;color:#334155}
-    input,button{width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafcff;font-size:1rem;outline:none;transition:border .15s,box-shadow .15s,background .15s}
-    input:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--ring);background:#fff}
+    input,button,select{width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafcff;font-size:1rem;outline:none;transition:border .15s,box-shadow .15s,background .15s}
+    input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--ring);background:#fff}
     input.is-bad{border-color:var(--bad)}
     .hint{font-size:.8rem;color:var(--muted);margin-top:6px}
     .error{font-size:.8rem;color:var(--bad);margin-top:6px;display:none}
@@ -45,6 +45,11 @@
     @keyframes spin{to{transform:rotate(360deg)}}
     @media (max-width:560px){.grid{grid-template-columns:1fr}}
     code.small{font-size:.8rem}
+    .debug{background:#f8fafc;border:1px dashed #e5e7eb;border-radius:12px;padding:12px;margin-top:8px}
+    .debug h3{margin:0 0 6px;font-size:1rem}
+    .tbl{width:100%;border-collapse:collapse;font-size:.9rem}
+    .tbl th,.tbl td{border-top:1px solid #eef2f7;padding:6px 8px;text-align:left;white-space:nowrap}
+    .tbl th{font-weight:600}
   </style>
 </head>
 <body>
@@ -118,6 +123,23 @@
           <span id="busy" class="badge" style="display:none"><span class="spinner"></span> Procesando…</span>
           <span id="ok-badge" class="badge ok" style="display:none">✔ CSV correcto</span>
           <span id="err-badge" class="badge err" style="display:none">✖ Erro no CSV</span>
+          <label class="badge" style="margin-left:auto;cursor:pointer">
+            <input id="debug-toggle" type="checkbox" style="margin-right:8px"> Modo comprobación
+          </label>
+        </div>
+
+        <div id="debug-panel" class="debug full" style="display:none">
+          <h3>Mostrando as primeiras 20 filas incluídas e excluídas</h3>
+          <div style="display:grid;gap:12px;grid-template-columns:1fr 1fr">
+            <div>
+              <strong>Incluídas</strong>
+              <table class="tbl" id="tbl-in"></table>
+            </div>
+            <div>
+              <strong>Excluídas por exceder 2ª</strong>
+              <table class="tbl" id="tbl-ex"></table>
+            </div>
+          </div>
         </div>
 
         <div class="result full" aria-live="polite" id="sum-panel" style="display:none">
@@ -160,7 +182,7 @@
     }
     function filterDecimal1(e){
       let v=e.target.value.replace(',', '.').replace(/[^\d.]/g,'');
-      const parts=v.split('.'); let out=parts[0].replace(/^0+(?=\d)/,'');
+      const parts=v.split('.'); let out=parts[0].replace/^0+(?=\d)/,'';
       if(parts.length>1){out+='.'+parts.slice(1).join('').slice(0,1);}
       if(out==='.') out=''; e.target.value=out;
     }
@@ -246,9 +268,11 @@
           okBadge=$('ok-badge'), errBadge=$('err-badge'), csvStatus=$('csv-status'),
           dt1=$('dt1'), dt2=$('dt2'),
           sumPanel=$('sum-panel'), outRange=$('out-range'), outRows=$('out-rows'),
-          outKilosCsv=$('out-kilos-csv'), outEstadoCsv=$('out-estado-csv');
+          outKilosCsv=$('out-kilos-csv'), outEstadoCsv=$('out-estado-csv'),
+          dbgToggle=$('debug-toggle'), dbgPanel=$('debug-panel'),
+          tblIn=$('tbl-in'), tblEx=$('tbl-ex');
 
-    let busy=false, parsedRows=null;
+    let busy=false, parsedRows=null, lastIncluded=[], lastExcluded=[];
 
     function setBusy(v){
       busy=v;
@@ -271,11 +295,12 @@
 
     dt1.addEventListener('change', ()=>{ setMinForDt2(); refreshCalcButton(); });
     dt2.addEventListener('change', refreshCalcButton);
+    dbgToggle.addEventListener('change', ()=>{ dbgPanel.style.display = dbgToggle.checked?'block':'none'; if(dbgToggle.checked) renderDebug(); });
 
     // Validación automática ao seleccionar ficheiro
     csvInput.addEventListener('change', async ()=>{
       parsedRows=null; okBadge.style.display='none'; errBadge.style.display='none';
-      csvStatus.textContent='';
+      csvStatus.textContent=''; sumPanel.style.display='none'; dbgPanel.style.display='none'; dbgToggle.checked=false;
       refreshCalcButton();
       const f=csvInput.files && csvInput.files[0];
       if(!f) return;
@@ -306,15 +331,17 @@
       setTimeout(()=>{
         try{
           const a=getPickerDate(dt1.value), b=getPickerDate(dt2.value);
-          const {totalKilos, contadas}=computeSum(parsedRows, a, b);
+          const {totalKilos, contadas, incl, excl}=computeSum(parsedRows, a, b);
+          lastIncluded = incl.slice(0,200); lastExcluded = excl.slice(0,200);
           outRange.textContent=`${fmtDate(a)} → ${fmtDate(b)}`;
           outRows.textContent=String(contadas);
           outKilosCsv.textContent=new Decimal(totalKilos).toFixed(2);
           outEstadoCsv.textContent='Cálculo rematado ✅';
           sumPanel.style.display='block';
+          if(dbgToggle.checked) renderDebug();
 
           const kRounded = Math.round(totalKilos);
-          el.k.value = String(kRounded);
+          $('kilos').value = String(kRounded);
           recalc();
         }catch(e){
           showErr(e.message || 'Produciuse un erro no cálculo.');
@@ -323,6 +350,32 @@
         }
       },50);
     });
+
+    function renderDebug(){
+      const max=20;
+      const headers=['Nº vaca','Visita','Produción (kg)','Tempo cub.','Fin (visita+cub.)'];
+      function draw(table, arr){
+        table.innerHTML='';
+        const thead=document.createElement('thead');
+        const trh=document.createElement('tr');
+        headers.forEach(h=>{const th=document.createElement('th'); th.textContent=h; trh.appendChild(th);});
+        thead.appendChild(trh); table.appendChild(thead);
+        const tbody=document.createElement('tbody');
+        arr.slice(0,max).forEach(r=>{
+          const tr=document.createElement('tr');
+          const fin = addMinutes(r.visita, r.cubMin);
+          [r.vaca, fmtDate(r.visita), r.kilos.toFixed(1), hm(r.cubMin), fmtDate(fin)].forEach(v=>{
+            const td=document.createElement('td'); td.textContent=v; tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+      }
+      draw(tblIn, lastIncluded);
+      draw(tblEx, lastExcluded);
+    }
+
+    function hm(mins){ const h=Math.floor(mins/60), m=String(mins%60).padStart(2,'0'); return `${h}:${m}`; }
 
     function showInfo(msg){csvStatus.className='hint'; csvStatus.textContent=msg;}
     function showOk(msg){csvStatus.className='ok'; csvStatus.textContent=msg;}
@@ -333,8 +386,7 @@
       if(text.charCodeAt(0)===0xFEFF){ text = text.slice(1); }
       const lines=text.replace(/\r\n?/g,'\n').split('\n').filter(l=>l.trim().length>0);
       if(lines.length<2) throw new Error('O CSV está baleiro ou sen datos.');
-      const header=lines[0].trim();
-      const cols = header.split(',').map(s=>s.trim().replace(/^"(.*)"$/,'$1'));
+      const cols = lines[0].split(',').map(s=>s.trim().replace(/^"(.*)"$/,'$1'));
       const exp = ["Número de vaca","Fecha/hora de visita","Producción de leche","Tiempo en cubículo"];
       if(cols.length!==4 || exp.some((c,i)=>c!==cols[i])){
         throw new Error('Cabeceira incorrecta. Ten que ser o CSV exportado de Lely Horizon con esta cabeceira exacta: "Número de vaca","Fecha/hora de visita","Producción de leche","Tiempo en cubículo"');
@@ -379,21 +431,33 @@
     function fmt2(n){return String(n).padStart(2,'0');}
     function fmtDate(d){return `${d.getFullYear()}-${fmt2(d.getMonth()+1)}-${fmt2(d.getDate())} ${fmt2(d.getHours())}:${fmt2(d.getMinutes())}`;}
 
-    // ALGORITMO (definitivo):
-    // Inclúe se: visita >= dtIni e visita < dtFin.
-    // EXCLÚE se: visita + tempo_en_cubículo (en minutos) > dtFin.
+    // ALGORITMO segundo o que pediches:
+    // Exclúe cando:
+    // 1) visita < dtIni
+    // 2) visita > dtFin
+    // 3) visita + tempo_en_cubículo > dtFin
+    // Polo tanto: incluímos visita ∈ [dtIni, dtFin] e que non supere dtFin coa suma do cubículo.
     function computeSum(rows, dtIni, dtFin){
       let total=new Decimal(0), contadas=0;
+      const incl=[], excl=[];
+      const tIni = dtIni.getTime(), tFin = dtFin.getTime();
+
       for(const r of rows){
         const t=r.visita.getTime();
-        if(t < dtIni.getTime()) continue;
-        if(t >= dtFin.getTime()) continue;
+
+        if(t < tIni) continue;          // regra 1
+        if(t > tFin) continue;          // regra 2
+
         const finVisita = addMinutes(r.visita, r.cubMin);
-        if(finVisita.getTime() > dtFin.getTime()) continue; // supera a 2ª → fóra
+        if(finVisita.getTime() > tFin){ // regra 3
+          excl.push(r);
+          continue;
+        }
+
         total = total.plus(r.kilos);
-        contadas++;
+        contadas++; incl.push(r);
       }
-      return { totalKilos: total.toNumber(), contadas };
+      return { totalKilos: total.toNumber(), contadas, incl, excl };
     }
 
     // Inicialización
