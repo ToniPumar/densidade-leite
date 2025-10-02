@@ -94,7 +94,16 @@
         </div>
       </div>
 
-      <div class="footer">Modelo de densidade: base 1.032 g/ml a 20 °C, axustes por graxa, proteína e temperatura.</div>
+      <div class="footer">
+  <strong>Modelo de densidade.</strong>
+  Base: <b>1,032 g/ml</b> a <b>20&nbsp;°C</b> (G=3,5&nbsp;%, P=3,3&nbsp;%).
+  Axustes: por cada +1&nbsp;°C → −0,0002 g/ml; por cada −1&nbsp;°C → +0,0002 g/ml.
+  Por cada +1&nbsp;% de graxa → −0,0046 g/ml; −1&nbsp;% → +0,0046 g/ml.
+  Por cada +1&nbsp;% de proteína → +0,0010 g/ml; −1&nbsp;% → −0,0010 g/ml.
+  <br>
+  Fórmula: <code>ρ = 1,032 + (G−3,5)·(−0,0046) + (P−3,3)·(0,0010) + (T−20)·(−0,0002)</code>
+  (onde G e P van en %, e T en °C).
+</div>
     </div>
   </div>
 
