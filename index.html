@@ -73,9 +73,7 @@
 
   .actions{display:flex;gap:10px;flex-wrap:wrap}
   button.primary{background:linear-gradient(180deg,#6aa6ff,#4f8df3);color:#fff;border:none}
-  button.ghost{
-    background:#fff;border:1px solid #e5e7eb;color:#374151;
-  }
+  button.ghost{ background:#fff;border:1px solid #e5e7eb;color:#374151; }
   button:disabled{opacity:.6;cursor:not-allowed}
   .badge{display:inline-flex;align-items:center;gap:8px;font-size:.9rem;padding:8px 10px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;color:#374151}
   .badge.ok{border-color:rgba(16,185,129,.25);color:#065f46;background:rgba(16,185,129,.06)}
@@ -95,6 +93,7 @@
 
   .credit{margin-top:12px;text-align:center;color:#94a3b8;font-size:.85rem}
 
+  /* --- Mobile --- */
   @media (max-width: 560px){
     .wrap{ padding:14px; }
     .grid{ grid-template-columns:1fr; align-items:start; }
@@ -106,6 +105,13 @@
   @supports (-webkit-touch-callout: none){
     input[type="datetime-local"]{ -webkit-appearance:none; appearance:none; line-height:1.2; padding-right:12px; }
   }
+
+  /* ===== Barra “VERSIÓN BETA” + Axuda ===== */
+  .beta-bar{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px; flex-wrap:wrap; margin-bottom:8px;
+  }
+  .beta-bar .beta{ margin:0; }
 
   /* ===== Modal Axuda CSV ===== */
   .modal-backdrop{
@@ -189,16 +195,15 @@
       <!-- BLOQUE 2: CSV + Fiestras de recollida -->
       <div class="grid row" style="margin-top:14px">
         <div class="field full">
-          <div class="beta" style="margin-bottom:8px">VERSIÓN BETA: o módulo CSV está en probas</div>
-
-          <!-- Etiqueta + botón Axuda -->
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-            <label for="csv" style="margin:0">CSV de visitas (Lely Horizon, formato exacto)</label>
+          <!-- Barra versión beta + botón Axuda ao lado -->
+          <div class="beta-bar">
+            <div class="beta">VERSIÓN BETA: o módulo CSV está en probas</div>
             <button id="btn-help" type="button" class="ghost" aria-haspopup="dialog" aria-controls="modal-csv">
               📘 Axuda CSV
             </button>
           </div>
 
+          <label for="csv">CSV de visitas (Lely Horizon, formato exacto)</label>
           <input id="csv" type="file" accept=".csv" />
           <div class="hint">
             Cabeceira obrigatoria (Horizon): <code class="small">"Número de vaca","Fecha/hora de visita","Producción de leche","Tiempo en cubículo"</code><br>
@@ -236,7 +241,7 @@
 
   <!-- ===== Modal Axuda CSV ===== -->
   <div id="modal-backdrop" class="modal-backdrop" aria-hidden="true">
-    <div id="modal-csv" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-ttl" aria-describedby="modal-desc">
+    <div id="modal-csv" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-ttl" aria-describedby="modal-desc" tabindex="-1">
       <h3 id="modal-ttl">Como xerar o CSV en Lely Horizon</h3>
       <p id="modal-desc" class="hint">Guía rápida para exportar o informe correcto.</p>
       <ol>
@@ -410,7 +415,8 @@
         const text=await f.text();
         const res=validateAndParseCSV(text);
         parsedRows=res.rows;
-        showOk(`CSV correcto. Filas: ${parsedRows.length}.`);
+        const skippedMsg = res.skippedEmpty>0 ? ` (omitidas por campos baleiros: ${res.skippedEmpty})` : '';
+        showOk(`CSV correcto. Filas válidas: ${parsedRows.length}${skippedMsg}.`);
         okBadge.style.display='inline-flex'; errBadge.style.display='none';
       }catch(e){
         parsedRows=null;
@@ -467,12 +473,25 @@
       }
 
       const rows=[];
+      let skippedEmpty=0;
       for(let i=1;i<lines.length;i++){
         const raw=lines[i].trim();
+        if(!raw) continue;
         const parts=raw.split(',').map(s=>s.trim().replace(/^"(.*)"$/,'$1'));
+
+        // Número de columnas incorrecto: seguimos a lanzar erro (o ficheiro non é o esperado).
         if(parts.length!==4) throw new Error(`Fila ${i+1}: número de columnas incorrecto.`);
+
+        // Se algún campo está baleiro, omítese a fila (non se lanza erro).
+        if(parts.some(p=>p==='')){
+          skippedEmpty++;
+          console.warn(`[OMITIDA] Fila ${i+1}: contén algún campo baleiro -> ignorada.`);
+          continue;
+        }
+
         const [numVaca,fechaHora,prod,tempoCub]=parts;
 
+        // Validación de formato estrito (se falla, si se informa como erro de formato)
         if(!/^\d+$/.test(numVaca)) throw new Error(`Fila ${i+1}: "Número de vaca" debe ser enteiro.`);
         if(!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(fechaHora)) throw new Error(`Fila ${i+1}: "Fecha/hora de visita" debe ser YYYY-MM-DD HH:MM.`);
         if(!/^\d+(?:\.\d+)?$/.test(prod)) throw new Error(`Fila ${i+1}: "Producción de leche" debe ser número con punto decimal (ex. 5.2).`);
@@ -483,7 +502,7 @@
         const cubSec=mmssToSeconds(tempoCub);
         rows.push({vaca:parseInt(numVaca,10), visita, kilos, cubSec});
       }
-      return {rows};
+      return {rows, skippedEmpty};
     }
 
     // Datas utilidades
@@ -573,17 +592,14 @@
     function openModal(){
       modalBackdrop.classList.add('show');
       modalBackdrop.removeAttribute('aria-hidden');
-      // foco no título do modal
       const ttl = document.getElementById('modal-ttl');
       ttl && ttl.focus && ttl.focus();
-      // bloquear scroll fondo
       document.body.style.overflow='hidden';
     }
     function closeModal(){
       modalBackdrop.classList.remove('show');
       modalBackdrop.setAttribute('aria-hidden','true');
       document.body.style.overflow='';
-      // devolver foco ao botón axuda
       btnHelp && btnHelp.focus && btnHelp.focus();
     }
 
