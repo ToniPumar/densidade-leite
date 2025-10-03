@@ -59,6 +59,26 @@
     .tooltip.open .tooltip-panel{display:block}
     /* Créditos simples no pé */
     .credit{margin-top:12px;text-align:center;color:#94a3b8;font-size:.85rem}
+    /* Evita que os campos forcen o ancho da columna no grid */
+.field{ min-width: 0; }
+
+/* Asegura que inputs e botóns nunca superen a columna */
+input, button{ max-width: 100%; }
+
+/* Os datetime-local axústanse ao contedor e non desbordan */
+input[type="datetime-local"]{
+  inline-size: 100%;          /* equivalente a width:100% en writing-mode LTR */
+  max-inline-size: 100%;
+  box-sizing: border-box;
+  min-height: 44px;           /* mellor “tap target” en móbil */
+}
+
+/* (Opcional) en móbil, unha soa columna: */
+@media (max-width: 560px){
+  .grid{ grid-template-columns: 1fr; align-items: start; }
+  .row{ overflow: hidden; }       /* por se o picker mete un pseudo-ícono que sobresae */
+  .field input{ font-size: 16px;} /* evita zoom en iOS ao focar */
+}
   </style>
 </head>
 <body>
@@ -418,7 +438,11 @@
       return new Date(d.getFullYear(),d.getMonth(),d.getDate(),d.getHours(),d.getMinutes(),d.getSeconds()+secs,0);
     }
     function fmt2(n){return String(n).padStart(2,'0');}
-    function fmtDate(d){return `${d.getFullYear()}-${fmt2(d.getMonth()+1)}-${fmt2(d.getDate())} ${fmt2(d.getHours())}:${fmt2(d.getMinutes())}`;}
+    // REEMPLAZA a función fmtDate por esta
+function fmtDate(d){
+  const fmt2 = (n)=> String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${fmt2(d.getMonth()+1)}-${fmt2(d.getDate())} ${fmt2(d.getHours())}:${fmt2(d.getMinutes())}:${fmt2(d.getSeconds())}`;
+}
 
     // ALGORITMO:
     // Inclúe se: visita >= dtIni e visita < dtFin.  [inicio, fin)
