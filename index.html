@@ -19,8 +19,18 @@
     --text:#1f2937; --muted:#6b7280; --ok:#10b981; --bad:#ef4444; --ring:rgba(106,166,255,.35)
   }
   *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial}
-  .wrap{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:18px}
+  html,body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial;
+    overflow-x:hidden; /* evita desprazamento horizontal en móbil */
+    -webkit-text-size-adjust:100%;
+    text-size-adjust:100%;
+  }
+
+  .wrap{
+    min-height:100dvh;display:flex;align-items:center;justify-content:center;
+    padding:18px;
+  }
   .card{
     width:100%;max-width:760px;background:var(--card);border-radius:16px;
     padding:20px 18px;box-shadow:0 10px 30px rgba(0,0,0,.06),0 2px 6px rgba(0,0,0,.04);
@@ -36,30 +46,30 @@
     padding:12px;border:1px dashed rgba(0,0,0,.08);border-radius:12px;background:#fbfdff;
   }
   .field{
-    min-width:0; /* IMPORTANT: evita desbordes en grid cando o input é ancho */
+    min-width:0; /* crítica: evita que o input expanda a columna */
   }
 
   label{display:block;font-size:.9rem;margin:0 0 6px 2px;color:#334155}
 
   /* --- Inputs & botóns --- */
   input,button{
-    width:100%;max-width:100%;display:block;
+    width:100%;max-width:100%;min-width:0;display:block;
     padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafcff;
     font-size:1rem;outline:none;transition:border .15s,box-shadow .15s,background .15s
   }
   input:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--ring);background:#fff}
   input.is-bad{border-color:var(--bad)}
 
-  /* Datetime: asegúrate de que nunca desborda en móbil */
+  /* Datetime: nunca desbordar e reservar espazo para o indicador nativo */
   input[type="datetime-local"]{
-    inline-size:100%;
-    max-inline-size:100%;
+    inline-size:100%; max-inline-size:100%; min-width:0;
     min-height:44px; /* tap target cómodo */
-    padding-right:14px; /* espazo para iconos nativos */
-    overflow:hidden; /* corta calquera píxel “rebelde” */
+    padding-right:38px; /* por se o indicador nativo ocupa espazo */
+    overflow:hidden;
+    background-clip: padding-box;
   }
-  /* Algúns navegadores meten botóns internos; reducimos impacto */
-  input::-webkit-calendar-picker-indicator{ margin-left:0; }
+  /* axustes dos “botóns” internos webkit */
+  input::-webkit-calendar-picker-indicator{ margin:0; padding:0; }
   input::-webkit-inner-spin-button,
   input::-webkit-clear-button{ height:1.2em; }
 
@@ -101,18 +111,27 @@
   /* Créditos no pé */
   .credit{margin-top:12px;text-align:center;color:#94a3b8;font-size:.85rem}
 
-  /* --- Mobile tweaks --- */
+  /* --- Mobile tweaks (pantallas pequenas) --- */
   @media (max-width: 560px){
+    .wrap{ padding:14px; }
     .grid{ grid-template-columns:1fr; align-items:start; }
     .card{ overflow:hidden; } /* corta calquera UI nativa que sobresae */
-    .row{ overflow:hidden; }
+    .row{ overflow:hidden; padding:10px; } /* un chisco menos de padding */
     .field input{ font-size:16px; } /* evita zoom en iOS ao focar */
+    /* Limitar aínda máis os datetime en pantallas estreitas */
+    input[type="datetime-local"]{
+      padding:10px 34px 10px 12px; /* máis lixeiro e espazo para indicador */
+      max-width:100%;
+      min-width:0;
+    }
   }
 
-  /* Pequeno hack para Safari iOS (detectar WebKit mobile) */
+  /* --- Fix específico WebKit/iOS (Safari & Chrome en iOS) --- */
   @supports (-webkit-touch-callout: none){
     input[type="datetime-local"]{
-      line-height:1.2; /* estabiliza altura do control nativo */
+      -webkit-appearance:none; appearance:none; /* elimina chrome nativo problemático */
+      line-height:1.2;
+      padding-right:12px; /* xa non precisamos reservar antes */
     }
   }
 </style>
