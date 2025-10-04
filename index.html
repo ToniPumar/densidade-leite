@@ -380,14 +380,33 @@
       .modal-backdrop.show {
         display: flex;
       }
+      .modal-close-x {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #334155;
+}
+.modal-close-x:hover {
+  color: #000;
+}
+
       .modal {
-        width: min(720px, 100%);
-        background: #fff;
-        border-radius: 16px;
-        border: 1px solid rgba(0, 0, 0, 0.06);
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
-        padding: 18px 18px 16px;
-      }
+  width: min(720px, 100%);
+  max-height: 90vh;          /* límite de alto na pantalla */
+  overflow-y: auto;          /* permite scroll interno */
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid rgba(0,0,0,.06);
+  box-shadow: 0 20px 60px rgba(0,0,0,.18);
+  padding: 18px 18px 16px;
+  position: relative;        /* para poder posicionar a “X” */
+}
+
       .modal h3 {
         margin: 0 0 8px;
         font-size: 1.05rem;
@@ -617,6 +636,7 @@
         aria-describedby="modal-desc"
         tabindex="-1"
       >
+        <button type="button" class="modal-close-x" aria-label="Pechar">×</button>
         <h3 id="modal-ttl">Como xerar o CSV en Lely Horizon</h3>
         <p id="modal-desc" class="hint">
           Guía rápida para exportar o informe correcto.
@@ -1294,6 +1314,7 @@
       const btnHelp = $("btn-help");
       const btnClose = $("modal-close");
       const btnClosePrimary = $("modal-close-primary");
+      document.querySelector('.modal-close-x').addEventListener('click', closeModal);
 
       function openModal() {
         modalBackdrop.classList.add("show");
